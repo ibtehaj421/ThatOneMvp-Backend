@@ -2,7 +2,7 @@ package database
 
 import (
 	"log"
-	"os"
+	
 
 	"health/anam/backend/models" // Update with your actual module path
 	"gorm.io/driver/postgres"
@@ -13,9 +13,8 @@ import (
 var DB *gorm.DB
 
 func ConnectDB() {
-	// For local dev, you can hardcode this or use os.Getenv("DB_URL") if you use a package like godotenv
-	// Example DSN: "host=localhost user=postgres password=yourpassword dbname=mvp_db port=5432 sslmode=disable"
-	dsn := "host=localhost user=postgres password=postgres dbname=postgres port=5432 sslmode=disable TimeZone=Asia/Karachi"
+	
+	dsn := "host=127.0.0.1 user=postgres password=mysecretpassword dbname=postgres port=5435 sslmode=disable TimeZone=Asia/Karachi"
 
 	var err error
 	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{

@@ -8,10 +8,20 @@ import (
 )
 
 // User represents the base user/patient in the system
+type Role string
+
+const (
+	RolePatient  Role = "patient"
+	RoleProvider Role = "provider" // For clinic owners/doctors
+	RoleAdmin    Role = "admin"    // For system administrators
+)
+
 type User struct {
 	ID        uint           `gorm:"primaryKey"`
 	Username  string         `gorm:"uniqueIndex;not null"`
 	Email     string         `gorm:"uniqueIndex;not null"`
+	Password  string         `gorm:"not null"`
+	Role      Role           `gorm:"type:varchar(20);default:'patient'"` // Added Role
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	DeletedAt gorm.DeletedAt `gorm:"index"`

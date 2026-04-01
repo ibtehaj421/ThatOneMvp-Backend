@@ -2,17 +2,50 @@ package main
 
 import (
 	"log"
+	"health/anam/backend/controllers"
+	"health/anam/backend/database"
+	"health/anam/backend/middleware"
+	"health/anam/backend/models"
 
-	"health/anam/backend/database" // Update with your actual module path
+	"github.com/gin-gonic/gin"
 )
 
 func main() {
 	log.Println("Starting MVP Backend...")
 
-	// Initialize Database Connection and Auto-Migrate Models
 	database.ConnectDB()
+	r := gin.Default()
 
-	log.Println("Backend is up and running. Ready to accept connections.")
-	
-	// Server logic (e.g., Gin, Fiber, or net/http) will go here
+	// Public Routes
+	r.POST("/register", controllers.RegisterUser)
+	r.POST("/login", controllers.Login)
+
+	// Protected Routes (Require valid JWT)
+	protected := r.Group("/")
+	protected.Use(middleware.RequireAuth())
+	{
+		protected.POST("/logout", controllers.Logout)
+
+		// ---------------------------------------------------------
+		// PATIENT & PROVIDER SHARED ROUTES
+		// ---------------------------------------------------------
+		// Both roles can upload/view documents and create bookings
+		protected.POST("/bookings", controllers.CreateBooking)
+		protected.POST("/documents/upload", controllers.UploadDocument)
+		protected.GET("/documents", controllers.ListDocuments)
+		protected.GET("/profile", controllers.GetUserInfo)
+
+		// ---------------------------------------------------------
+		// PROVIDER / ADMIN ONLY ROUTES
+		// ---------------------------------------------------------
+		providerOnly := protected.Group("/")
+		providerOnly.Use(middleware.RequireRole(models.RoleProvider, models.RoleAdmin))
+		{
+			// Only providers and admins can register a new hospital/clinic
+			providerOnly.POST("/organizations", controllers.RegisterOrganization)
+		}
+	}
+
+	log.Println("Backend is up and running on :8080. Ready to accept connections.")
+	r.Run(":8080")
 }
