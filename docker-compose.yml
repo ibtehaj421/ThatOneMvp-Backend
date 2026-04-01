@@ -1,17 +1,15 @@
-
-
 services:
   db:
     image: pgvector/pgvector:pg16
     container_name: anam_db
     restart: always
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: postgres
+      POSTGRES_USER: anam_user
+      POSTGRES_PASSWORD: anam_password
+      POSTGRES_DB: anam_db
       TZ: Asia/Karachi
     ports:
-      - "5432:5432"
+      - "5435:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
 
@@ -26,10 +24,11 @@ services:
     environment:
       # We override the DB host to point to the 'db' container name instead of localhost
       - DB_HOST=db
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - DB_NAME=postgres
+      - DB_USER=anam_user
+      - DB_PASSWORD=anam_password
+      - DB_NAME=anam_db
       - DB_PORT=5432
+      - PYTHON_AGENT_URL=http://host.docker.internal:8000/chat
     volumes:
       # Mount the storage directory so uploaded documents persist if the container restarts
       - ./storage:/root/storage
