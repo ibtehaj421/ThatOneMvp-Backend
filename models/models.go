@@ -67,3 +67,20 @@ type Appointment struct {
 	Patient      User         `gorm:"foreignKey:PatientID"`
 	Organization Organization `gorm:"foreignKey:OrganizationID"`
 }
+
+// InterviewSession tracks the stateless conversational history for the AI
+type InterviewSession struct {
+	// Composite Primary Key: PatientID + SessionSeq
+	PatientID  uint `gorm:"primaryKey;autoIncrement:false"`
+	SessionSeq uint `gorm:"primaryKey;autoIncrement:false"`
+
+	Status          string `gorm:"type:varchar(20);default:'in_progress'"` // 'in_progress', 'completed'
+	DialogueHistory string `gorm:"type:jsonb;default:'[]'"`                // Stores the array of messages
+	ExtractedSlots  string `gorm:"type:jsonb;default:'{}'"`                // Stores the current MediTOD state
+	
+	CreatedAt time.Time
+	UpdatedAt time.Time
+
+	// Relationships
+	Patient User `gorm:"foreignKey:PatientID"`
+}

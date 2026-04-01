@@ -8,6 +8,7 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
+	"github.com/joho/godotenv"
 )
 
 var DB *gorm.DB
@@ -15,6 +16,9 @@ var DB *gorm.DB
 func ConnectDB() {
 	
 	//dsn := "host=127.0.0.1 user=postgres password=mysecretpassword dbname=postgres port=5435 sslmode=disable TimeZone=Asia/Karachi"
+	if err := godotenv.Load(); err != nil {
+		log.Println("No .env file found, using system default environment variables")
+	}
 	host := getEnv("DB_HOST", "localhost")
 	user := getEnv("DB_USER", "postgres")
 	password := getEnv("DB_PASSWORD", "postgres")
@@ -35,7 +39,12 @@ func ConnectDB() {
 	log.Println("Database connection successfully opened")
 
 	// Auto-migrate the schemas
-	err = DB.AutoMigrate(&models.User{}, &models.Organization{}, &models.Appointment{})
+	err = DB.AutoMigrate(
+		&models.User{}, 
+		&models.Organization{}, 
+		&models.Appointment{},
+		&models.InterviewSession{},
+	)
 	if err != nil {
 		log.Fatal("Failed to migrate database: ", err)
 	}

@@ -34,6 +34,8 @@ func main() {
 		protected.POST("/documents/upload", controllers.UploadDocument)
 		protected.GET("/documents", controllers.ListDocuments)
 		protected.GET("/profile", controllers.GetUserInfo)
+		protected.POST("/chat/start", controllers.StartSession)
+		protected.POST("/chat/message", controllers.SendMessage)
 
 		// ---------------------------------------------------------
 		// PROVIDER / ADMIN ONLY ROUTES
