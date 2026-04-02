@@ -8,7 +8,7 @@ import (
 	"health/anam/backend/database"
 	"health/anam/backend/middleware"
 	"health/anam/backend/models"
-
+	"time"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -138,21 +138,44 @@ func RegisterOrganization(c *gin.Context) {
 
 // --- BOOKINGS / APPOINTMENTS ---
 
+// CreateBooking handles appointment scheduling
 func CreateBooking(c *gin.Context) {
-	var booking models.Appointment
-	if err := c.ShouldBindJSON(&booking); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	// 1. The Struct Fields MUST be Capitalized so Gin can access them.
+	// We also add time_format to strictly handle the ISO8601 date from Postman.
+	var body struct {
+		PatientID      uint      `json:"patient_id" binding:"required"`
+		ProviderID     uint      `json:"provider_id" binding:"required"`
+		OrganizationID uint      `json:"organization_id" binding:"required"`
+		StartTime      time.Time `json:"start_time" binding:"required" time_format:"2006-01-02T15:04:05Z07:00"`
+	}
+
+	// 2. Bind the incoming JSON payload
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload format: " + err.Error()})
 		return
 	}
 
-	booking.PatientID = c.GetUint("user_id") // Enforce the booking belongs to the logged-in user
+	// 3. Map the payload to your actual Database Model
+	booking := models.Appointment{
+		PatientID:      body.PatientID,
+		ProviderID:     body.ProviderID,
+		OrganizationID: body.OrganizationID,
+		StartTime:      body.StartTime,
+		Status:         "pending", // Ensure default status is set
+	}
 
-	if result := database.DB.Create(&booking); result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create appointment"})
+	// 4. Save to the database
+	if err := database.DB.Create(&booking).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create appointment: " + err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Appointment created", "booking": booking})
+	// 5. Return success with the new Appointment ID
+	c.JSON(http.StatusOK, gin.H{
+		"message":        "Appointment created successfully",
+		"appointment_id": booking.ID,
+		"booking":        booking,
+	})
 }
 
 // --- DOCUMENT MANAGEMENT ---

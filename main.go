@@ -36,15 +36,24 @@ func main() {
 		protected.GET("/profile", controllers.GetUserInfo)
 		protected.POST("/chat/start", controllers.StartSession)
 		protected.POST("/chat/message", controllers.SendMessage)
+		protected.GET("/chat/export/:session_seq", controllers.ExportClinicalHistory)
 
 		// ---------------------------------------------------------
 		// PROVIDER / ADMIN ONLY ROUTES
 		// ---------------------------------------------------------
 		providerOnly := protected.Group("/")
+		// Restrict these routes to ONLY users with the Provider or Admin role
 		providerOnly.Use(middleware.RequireRole(models.RoleProvider, models.RoleAdmin))
 		{
-			// Only providers and admins can register a new hospital/clinic
+			// Organization management
 			providerOnly.POST("/organizations", controllers.RegisterOrganization)
+
+			
+			// Fetch the full clinical context (AI history + demographics) for a specific appointment
+			providerOnly.GET("/appointments/:appointment_id/context", controllers.GetPatientClinicalContext)
+			
+			// Save the doctor's final clinical notes
+			providerOnly.PUT("/appointments/:appointment_id/notes", controllers.UpdateDoctorNotes)
 		}
 	}
 

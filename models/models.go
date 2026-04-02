@@ -55,6 +55,7 @@ const (
 type Appointment struct {
 	ID             uint              `gorm:"primaryKey"`
 	PatientID      uint              `gorm:"not null;index"` // Foreign key to User
+	ProviderID     uint              `gorm:"not null;index"`
 	OrganizationID uint              `gorm:"not null;index"` // Foreign key to Organization
 	StartTime      time.Time         `gorm:"not null"`
 	EndTime        time.Time
@@ -83,4 +84,26 @@ type InterviewSession struct {
 
 	// Relationships
 	Patient User `gorm:"foreignKey:PatientID"`
+}
+
+
+type SymptomSlot struct {
+	Value       string `json:"value"`
+	Onset       string `json:"onset"`
+	Duration    string `json:"duration"`
+	Severity    string `json:"severity"`
+	Location    string `json:"location"`
+	Progression string `json:"progression"`
+	Frequency   string `json:"frequency"`
+}
+
+type CMASState struct {
+	ChiefComplaint        string                 `json:"chief_complaint"`
+	PositiveSymptoms      []SymptomSlot          `json:"positive_symptoms"`
+	NegativeSymptoms      []SymptomSlot          `json:"negative_symptoms"`
+	PatientMedicalHistory []string               `json:"patient_medical_history"`
+	FamilyMedicalHistory  []string               `json:"family_medical_history"`
+	Medications           []string               `json:"medications"`
+	Habits                map[string]interface{} `json:"habits"`
+	BasicInformation      map[string]interface{} `json:"basic_information"`
 }
