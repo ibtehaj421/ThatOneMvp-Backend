@@ -32,6 +32,7 @@ func main() {
 		// Both roles can upload/view documents and create bookings
 		protected.POST("/bookings", controllers.CreateBooking)
 		protected.POST("/documents/upload", controllers.UploadDocument)
+		protected.GET("/appointments", controllers.GetUserAppointments)
 		protected.GET("/documents", controllers.ListDocuments)
 		protected.GET("/profile", controllers.GetUserInfo)
 		protected.POST("/chat/start", controllers.StartSession)
@@ -49,7 +50,7 @@ func main() {
 			// Organization management
 			providerOnly.POST("/organizations", controllers.RegisterOrganization)
 
-			
+			providerOnly.GET("/organizations/:org_id/appointments", controllers.GetOrganizationAppointments)
 			// Fetch the full clinical context (AI history + demographics) for a specific appointment
 			providerOnly.GET("/appointments/:appointment_id/context", controllers.GetPatientClinicalContext)
 			

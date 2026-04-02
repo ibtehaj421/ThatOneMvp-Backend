@@ -229,3 +229,65 @@ func ListDocuments(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"documents": fileNames})
 }
+
+
+// --- APPOINTMENT RETRIEVAL ENDPOINTS ---
+
+// GetUserAppointments fetches all appointments for the currently logged-in user.
+// It dynamically filters based on whether the user is a patient or a provider.
+func GetUserAppointments(c *gin.Context) {
+	userID := c.GetUint("user_id")
+	role := c.GetString("role")
+
+	var appointments []models.Appointment
+	
+	// Preload the related structs so the frontend gets complete details
+	query := database.DB.Preload("Organization").Preload("Patient").Preload("Provider")
+
+	// Filter based on the user's role
+	if role == string(models.RolePatient) {
+		query = query.Where("patient_id = ?", userID)
+	} else {
+		query = query.Where("provider_id = ?", userID)
+	}
+
+	// Execute the query, ordering by the most recent/upcoming
+	if err := query.Order("start_time desc").Find(&appointments).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch appointments"})
+		return
+	}
+
+	// Ensure we return an empty array instead of null if none exist
+	if appointments == nil {
+		appointments = []models.Appointment{}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"appointments": appointments,
+	})
+}
+
+// GetOrganizationAppointments fetches the master schedule for a specific clinic/organization.
+func GetOrganizationAppointments(c *gin.Context) {
+	orgID := c.Param("org_id")
+
+	var appointments []models.Appointment
+	
+	// Preload the patient and provider details for the organization's administrative view
+	if err := database.DB.Preload("Patient").Preload("Provider").
+		Where("organization_id = ?", orgID).
+		Order("start_time asc").
+		Find(&appointments).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch organization appointments"})
+		return
+	}
+
+	if appointments == nil {
+		appointments = []models.Appointment{}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"organization_id": orgID,
+		"appointments":    appointments,
+	})
+}
