@@ -37,7 +37,8 @@ func main() {
 		protected.POST("/chat/start", controllers.StartSession)
 		protected.POST("/chat/message", controllers.SendMessage)
 		protected.GET("/chat/export/:session_seq", controllers.ExportClinicalHistory)
-
+		protected.GET("/chat/sessions", controllers.GetAllSessions)
+		protected.GET("/chat/sessions/:session_seq/history", controllers.GetSessionHistory)
 		// ---------------------------------------------------------
 		// PROVIDER / ADMIN ONLY ROUTES
 		// ---------------------------------------------------------

@@ -277,3 +277,74 @@ SOCIAL HISTORY (SH):
 	
 	c.String(http.StatusOK, output)
 }
+
+
+// --- SESSION RETRIEVAL ENDPOINTS ---
+
+// GetAllSessions retrieves a lightweight list of all interview sessions for the logged-in patient
+func GetAllSessions(c *gin.Context) {
+	patientID := c.GetUint("user_id")
+
+	// We create a lightweight struct so we don't pull down the heavy JSONB
+	// columns (DialogueHistory, ExtractedSlots) just to display a list.
+	type SessionSummary struct {
+		SessionSeq uint      `json:"session_seq"`
+		Status     string    `json:"status"`
+		CreatedAt  time.Time `json:"created_at"`
+		UpdatedAt  time.Time `json:"updated_at"`
+	}
+
+	var summaries []SessionSummary
+
+	// Query the database, ordering by the most recent sessions first
+	result := database.DB.Model(&models.InterviewSession{}).
+		Where("patient_id = ?", patientID).
+		Order("session_seq desc").
+		Find(&summaries)
+
+	if result.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve sessions"})
+		return
+	}
+
+	// Return an empty array instead of null if there are no sessions
+	if summaries == nil {
+		summaries = []SessionSummary{}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"sessions": summaries,
+	})
+}
+
+// GetSessionHistory retrieves the chat messages (DialogueHistory) for a specific session
+func GetSessionHistory(c *gin.Context) {
+	patientID := c.GetUint("user_id")
+	sessionSeqStr := c.Param("session_seq")
+
+	var session models.InterviewSession
+
+	// We only need to select the DialogueHistory column here
+	result := database.DB.Select("dialogue_history").
+		Where("patient_id = ? AND session_seq = ?", patientID, sessionSeqStr).
+		First(&session)
+
+	if result.Error != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Session not found"})
+		return
+	}
+
+	// Since DialogueHistory is stored as a JSONB string in Postgres, 
+	// we use json.RawMessage to pass it directly to Gin without unmarshaling/marshaling overhead.
+	var rawHistory json.RawMessage
+	if session.DialogueHistory != "" {
+		rawHistory = json.RawMessage(session.DialogueHistory)
+	} else {
+		rawHistory = json.RawMessage("[]") // Default empty array
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"session_seq": sessionSeqStr,
+		"history":     rawHistory,
+	})
+}
