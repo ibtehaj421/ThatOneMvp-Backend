@@ -291,3 +291,53 @@ func GetOrganizationAppointments(c *gin.Context) {
 		"appointments":    appointments,
 	})
 }
+
+// --- ORGANIZATION LISTING ---
+
+// GetNearbyOrganizations fetches clinics. It optionally filters by distance 
+// if lat, lng, and radius (in kilometers) are provided via query params.
+func GetNearbyOrganizations(c *gin.Context) {
+	lat := c.Query("lat")
+	lng := c.Query("lng")
+	radius := c.Query("radius") // Search radius in kilometers
+
+	var orgs []models.Organization
+
+	if lat != "" && lng != "" && radius != "" {
+		// PostgreSQL Haversine formula query to calculate distance in KM (6371 is Earth's radius)
+		query := `
+			SELECT * FROM (
+				SELECT *, 
+				(6371 * acos(
+					cos(radians(?)) * cos(radians(latitude)) * cos(radians(longitude) - radians(?)) + 
+					sin(radians(?)) * sin(radians(latitude))
+				)) AS distance
+				FROM organizations
+				WHERE deleted_at IS NULL
+			) AS subquery
+			WHERE distance <= ?
+			ORDER BY distance
+		`
+		
+		// Note the parameter order: lat, lng, lat, radius
+		if err := database.DB.Raw(query, lat, lng, lat, radius).Scan(&orgs).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to calculate nearby organizations"})
+			return
+		}
+	} else {
+		// Fallback: Return all organizations if no map coordinates are provided
+		if err := database.DB.Find(&orgs).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch organizations"})
+			return
+		}
+	}
+
+	// Ensure we don't return a null array to the frontend
+	if orgs == nil {
+		orgs = []models.Organization{}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"organizations": orgs,
+	})
+}

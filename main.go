@@ -40,6 +40,7 @@ func main() {
 		protected.GET("/chat/export/:session_seq", controllers.ExportClinicalHistory)
 		protected.GET("/chat/sessions", controllers.GetAllSessions)
 		protected.GET("/chat/sessions/:session_seq/history", controllers.GetSessionHistory)
+		protected.GET("/organizations", controllers.GetNearbyOrganizations)
 		// ---------------------------------------------------------
 		// PROVIDER / ADMIN ONLY ROUTES
 		// ---------------------------------------------------------
