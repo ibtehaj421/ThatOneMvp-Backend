@@ -41,6 +41,7 @@ func main() {
 		protected.GET("/chat/sessions", controllers.GetAllSessions)
 		protected.GET("/chat/sessions/:session_seq/history", controllers.GetSessionHistory)
 		protected.GET("/organizations", controllers.GetNearbyOrganizations)
+		protected.GET("/providers", controllers.GetAllProviders)
 		// ---------------------------------------------------------
 		// PROVIDER / ADMIN ONLY ROUTES
 		// ---------------------------------------------------------

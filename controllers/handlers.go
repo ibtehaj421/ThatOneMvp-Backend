@@ -341,3 +341,40 @@ func GetNearbyOrganizations(c *gin.Context) {
 		"organizations": orgs,
 	})
 }
+
+// --- PROVIDER LISTING ---
+
+// GetAllProviders fetches a list of all registered doctors/providers.
+// It explicitly selects only safe fields to prevent data leakage.
+func GetAllProviders(c *gin.Context) {
+	// Define a lightweight inline struct for the response
+	var safeProviders []struct {
+		ID       uint   `json:"ID"`
+		Username string `json:"Username"`
+		Email    string `json:"Email"`
+	}
+
+	// Query the users table where role is 'provider'
+	result := database.DB.Model(&models.User{}).
+		Select("id, username, email").
+		Where("role = ?", models.RoleProvider).
+		Find(&safeProviders)
+
+	if result.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch providers"})
+		return
+	}
+
+	// Ensure we return an empty array instead of null
+	if safeProviders == nil {
+		safeProviders = []struct {
+			ID       uint   `json:"ID"`
+			Username string `json:"Username"`
+			Email    string `json:"Email"`
+		}{}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"providers": safeProviders,
+	})
+}
