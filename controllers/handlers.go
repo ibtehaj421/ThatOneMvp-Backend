@@ -378,3 +378,28 @@ func GetAllProviders(c *gin.Context) {
 		"providers": safeProviders,
 	})
 }
+
+// GetProviderOrganizations fetches the clinics owned or managed by the logged-in doctor.
+func GetProviderOrganizations(c *gin.Context) {
+	// Safely extract the email from the JWT middleware
+	email := c.GetString("email")
+
+	var orgs []models.Organization
+
+	// Query the database for organizations where this user is the owner.
+	// Note: If you later expand to use the AdminEmails array for multi-doctor clinics, 
+	// you would update this query to: Where("owner_email = ? OR ? = ANY(admin_emails)", email, email)
+	if err := database.DB.Where("owner_email = ?", email).Find(&orgs).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch your organizations"})
+		return
+	}
+
+	// Ensure an empty array is returned instead of null if they haven't registered a clinic yet
+	if orgs == nil {
+		orgs = []models.Organization{}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"organizations": orgs,
+	})
+}

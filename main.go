@@ -55,7 +55,7 @@ func main() {
 			providerOnly.GET("/organizations/:org_id/appointments", controllers.GetOrganizationAppointments)
 			// Fetch the full clinical context (AI history + demographics) for a specific appointment
 			providerOnly.GET("/appointments/:appointment_id/context", controllers.GetPatientClinicalContext)
-			
+			providerOnly.GET("/my-organizations", controllers.GetProviderOrganizations)
 			// Save the doctor's final clinical notes
 			providerOnly.PUT("/appointments/:appointment_id/notes", controllers.UpdateDoctorNotes)
 		}
