@@ -64,7 +64,7 @@ func UpdateDoctorNotes(c *gin.Context) {
 	appointmentID := c.Param("appointment_id")
 
 	var body struct {
-		Notes  string `json:"notes" binding:"required"`
+		Notes  string `json:"notes"`
 		Status string `json:"status"` // e.g., to mark the appointment as "completed"
 	}
 

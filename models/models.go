@@ -66,6 +66,7 @@ type Appointment struct {
 
 	// Relationships
 	Patient      User         `gorm:"foreignKey:PatientID"`
+	Provider     User         `gorm:"foreignKey:ProviderID"`
 	Organization Organization `gorm:"foreignKey:OrganizationID"`
 }
 
