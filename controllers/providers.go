@@ -27,17 +27,25 @@ func GetPatientClinicalContext(c *gin.Context) {
 		return
 	}
 
-	// 2. Fetch the Patient's AI Intake History
-	// We fetch the most recently completed AI session for this patient.
-	var latestSession models.InterviewSession
+	// 2. Fetch ALL completed AI Intake Sessions for this patient (most recent first)
+	var allSessions []models.InterviewSession
 	database.DB.Where("patient_id = ? AND status = ?", appointment.PatientID, "completed").
 		Order("created_at desc").
-		First(&latestSession)
+		Find(&allSessions)
 
-	// Unmarshal the extracted slots so the frontend gets clean JSON
-	var parsedHistory models.CMASState
-	if latestSession.ExtractedSlots != "" {
-		json.Unmarshal([]byte(latestSession.ExtractedSlots), &parsedHistory)
+	// Unmarshal each session's extracted slots into a parsed history object
+	var allParsedHistories []models.CMASState
+	for _, session := range allSessions {
+		var parsedHistory models.CMASState
+		if session.ExtractedSlots != "" {
+			json.Unmarshal([]byte(session.ExtractedSlots), &parsedHistory)
+		}
+		allParsedHistories = append(allParsedHistories, parsedHistory)
+	}
+
+	// Guard against nil slice so JSON encodes as [] not null
+	if allParsedHistories == nil {
+		allParsedHistories = []models.CMASState{}
 	}
 
 	// 3. Return the payload to the Doctor's Portal
@@ -53,7 +61,7 @@ func GetPatientClinicalContext(c *gin.Context) {
 			"username":   appointment.Patient.Username,
 			"email":      appointment.Patient.Email,
 		},
-		"ai_intake_history": parsedHistory, // The structured CMAS JSON from Python
+		"all_historical_intakes": allParsedHistories, // All completed AI sessions, newest first
 	})
 }
 
