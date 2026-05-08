@@ -107,22 +107,47 @@ func Logout(c *gin.Context) {
 // --- PROFILE / USER INFO ---
 
 func GetUserInfo(c *gin.Context) {
-	// Safely extract the user_id that our middleware attached to the context
 	userID := c.GetUint("user_id")
 
 	var user models.User
-	
-	// Query the database, but specifically exclude the password field for security
-	result := database.DB.Select("id", "username", "email", "role", "created_at").First(&user, userID)
-	
+	result := database.DB.Select(
+		"id", "username", "email", "role",
+		"full_name", "identification_number", "location", "profile_image_url",
+		"created_at",
+	).First(&user, userID)
+
 	if result.Error != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "User profile not found"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"profile": user,
-	})
+	c.JSON(http.StatusOK, gin.H{"profile": user})
+}
+
+func UpdateProfile(c *gin.Context) {
+	userID := c.GetUint("user_id")
+
+	var body struct {
+		FullName             string `json:"full_name"`
+		IdentificationNumber string `json:"identification_number"`
+		Location             string `json:"location"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	updates := map[string]interface{}{
+		"full_name":             body.FullName,
+		"identification_number": body.IdentificationNumber,
+		"location":              body.Location,
+	}
+	if err := database.DB.Model(&models.User{}).Where("id = ?", userID).Updates(updates).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update profile"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Profile updated successfully"})
 }
 // --- ORGANIZATIONS ---
 
@@ -177,6 +202,26 @@ func CreateBooking(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create appointment: " + err.Error()})
 		return
 	}
+
+	// Look up the patient's display name for richer notification messages.
+	var patient models.User
+	database.DB.Select("id", "username", "full_name").First(&patient, body.PatientID)
+	patientDisplay := patient.FullName
+	if patientDisplay == "" {
+		patientDisplay = patient.Username
+	}
+
+	// Notify the provider: patient name + date.
+	database.DB.Create(&models.Notification{
+		UserID:  body.ProviderID,
+		Message: fmt.Sprintf("New appointment booked by %s for %s. Please review and confirm.", patientDisplay, booking.StartTime.Format("Jan 02, 2006 at 15:04")),
+	})
+
+	// Notify the patient: booking confirmation.
+	database.DB.Create(&models.Notification{
+		UserID:  body.PatientID,
+		Message: fmt.Sprintf("Your appointment on %s has been booked and is pending confirmation from your doctor.", booking.StartTime.Format("Jan 02, 2006 at 15:04")),
+	})
 
 	// 5. Return success with the new Appointment ID
 	c.JSON(http.StatusOK, gin.H{

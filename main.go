@@ -14,6 +14,7 @@ func main() {
 	log.Println("Starting MVP Backend...")
 
 	database.ConnectDB()
+	middleware.DB = database.DB
 	r := gin.Default()
 
 	// Public Routes
@@ -37,6 +38,7 @@ func main() {
 		protected.GET("/appointments", controllers.GetUserAppointments)
 		protected.GET("/documents", controllers.ListDocuments)
 		protected.GET("/profile", controllers.GetUserInfo)
+		protected.PUT("/profile", controllers.UpdateProfile)
 		
 		// Note: The /chat endpoints here assume you have your StartSession/SendMessage in a separate file,
 		// Ensure they are available, otherwise comment these out if missing in the context

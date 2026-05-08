@@ -112,9 +112,9 @@ func MarkAppointmentMissed(c *gin.Context) {
 	providerID := c.GetUint("user_id")
 	appointmentID := c.Param("appointment_id")
 
-	// 1. Validate doctor owns this appointment
+	// 1. Validate doctor owns this appointment, preload both parties for notification messages.
 	var appointment models.Appointment
-	if err := database.DB.Preload("Provider").Where("id = ? AND provider_id = ?", appointmentID, providerID).First(&appointment).Error; err != nil {
+	if err := database.DB.Preload("Provider").Preload("Patient").Where("id = ? AND provider_id = ?", appointmentID, providerID).First(&appointment).Error; err != nil {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Unauthorized access or appointment not found"})
 		return
 	}
@@ -126,17 +126,27 @@ func MarkAppointmentMissed(c *gin.Context) {
 		return
 	}
 
-	// 3. Create a notification for the patient asking them to reschedule
-	notificationMsg := fmt.Sprintf("You missed your appointment on %s with Dr. %s. Please reschedule at your earliest convenience.", 
-		appointment.StartTime.Format("Jan 02, 2006 at 15:04"), 
-		appointment.Provider.Username) // Or FullName if prioritized
+	dateStr := appointment.StartTime.Format("Jan 02, 2006 at 15:04")
 
-	notification := models.Notification{
-		UserID:  appointment.PatientID,
-		Message: notificationMsg,
+	// Patient-facing: tell them their appointment was missed and they should reschedule.
+	providerDisplay := appointment.Provider.FullName
+	if providerDisplay == "" {
+		providerDisplay = appointment.Provider.Username
 	}
+	database.DB.Create(&models.Notification{
+		UserID:  appointment.PatientID,
+		Message: fmt.Sprintf("Your appointment on %s was marked as missed by Dr. %s. Please contact the clinic to reschedule.", dateStr, providerDisplay),
+	})
 
-	database.DB.Create(&notification) // We ignore the error here so we don't break the response if notification fails
+	// Doctor-facing: confirmation that the record was updated, with patient name.
+	patientDisplay := appointment.Patient.FullName
+	if patientDisplay == "" {
+		patientDisplay = appointment.Patient.Username
+	}
+	database.DB.Create(&models.Notification{
+		UserID:  providerID,
+		Message: fmt.Sprintf("Patient %s missed the appointment on %s. The appointment has been marked as missed in the schedule.", patientDisplay, dateStr),
+	})
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Appointment marked as missed. Patient has been notified.",

@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"gorm.io/gorm"
 	"health/anam/backend/models"
 )
 
@@ -23,6 +24,9 @@ func GenerateToken(userID uint, email string, role string) (string, error) {
 	})
 	return token.SignedString(JwtSecret)
 }
+
+// DB is set by main after ConnectDB so the middleware can refresh roles.
+var DB *gorm.DB
 
 func RequireAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -47,15 +51,31 @@ func RequireAuth() gin.HandlerFunc {
 		}
 
 		claims, ok := token.Claims.(jwt.MapClaims)
-		if ok && token.Valid {
-			// Attach user info AND role to the context
-			c.Set("user_id", uint(claims["user_id"].(float64)))
-			c.Set("email", claims["email"].(string))
-			c.Set("role", claims["role"].(string)) 
-			c.Next()
-		} else {
+		if !ok || !token.Valid {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+			return
 		}
+
+		// Safe extraction — old tokens may be missing claims.
+		userIDFloat, _ := claims["user_id"].(float64)
+		userID := uint(userIDFloat)
+		if userID == 0 {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token claims"})
+			return
+		}
+
+		// Always fetch the current role from the DB so stale tokens can't
+		// carry a wrong or empty role claim.
+		var user models.User
+		if err := DB.Select("id", "email", "role").First(&user, userID).Error; err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
+			return
+		}
+
+		c.Set("user_id", userID)
+		c.Set("email", user.Email)
+		c.Set("role", string(user.Role))
+		c.Next()
 	}
 }
 
