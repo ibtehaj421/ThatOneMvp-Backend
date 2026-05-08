@@ -11,16 +11,22 @@ import (
 	"time"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 // --- AUTHENTICATION ---
 
 func RegisterUser(c *gin.Context) {
 	var body struct {
-		Username string      `json:"username" binding:"required"`
-		Email    string      `json:"email" binding:"required,email"`
-		Password string      `json:"password" binding:"required,min=6"`
-		Role     models.Role `json:"role"` // Optional in request
+		Username             string      `json:"username" binding:"required"`
+		Email                string      `json:"email" binding:"required,email"`
+		Password             string      `json:"password" binding:"required,min=6"`
+		Role                 models.Role `json:"role"` 
+		// --- NEW FIELDS ---
+		FullName             string      `json:"full_name"`
+		IdentificationNumber string      `json:"identification_number"`
+		Location             string      `json:"location"`
+		ProfileImageURL      string      `json:"profile_image_url"`
 	}
 
 	if err := c.ShouldBindJSON(&body); err != nil {
@@ -28,13 +34,11 @@ func RegisterUser(c *gin.Context) {
 		return
 	}
 
-	// Security: Prevent users from making themselves system admins via the public API
 	if body.Role == models.RoleAdmin {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Cannot register as admin"})
 		return
 	}
 	
-	// Default to patient if left empty or invalid
 	if body.Role != models.RoleProvider {
 		body.Role = models.RolePatient
 	}
@@ -46,10 +50,14 @@ func RegisterUser(c *gin.Context) {
 	}
 
 	user := models.User{
-		Username: body.Username, 
-		Email:    body.Email, 
-		Password: string(hash),
-		Role:     body.Role,
+		Username:             body.Username, 
+		Email:                body.Email, 
+		Password:             string(hash),
+		Role:                 body.Role,
+		FullName:             body.FullName,
+		IdentificationNumber: body.IdentificationNumber,
+		Location:             body.Location,
+		ProfileImageURL:      body.ProfileImageURL,
 	}
 
 	if result := database.DB.Create(&user); result.Error != nil {
@@ -402,4 +410,96 @@ func GetProviderOrganizations(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"organizations": orgs,
 	})
+}
+
+// --- CHAT SYSTEM FOR APPOINTMENTS ---
+
+func SendAppointmentMessage(c *gin.Context) {
+	userID := c.GetUint("user_id")
+	appointmentID := c.Param("appointment_id")
+
+	var body struct {
+		Message string `json:"message" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Verify user belongs to this appointment
+	var appt models.Appointment
+	if err := database.DB.First(&appt, appointmentID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Appointment not found"})
+		return
+	}
+
+	if appt.PatientID != userID && appt.ProviderID != userID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Not authorized to chat in this appointment"})
+		return
+	}
+
+	msg := models.AppointmentMessage{
+		AppointmentID: appt.ID,
+		SenderID:      userID,
+		Message:       body.Message,
+	}
+
+	if err := database.DB.Create(&msg).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to send message"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Sent", "chat": msg})
+}
+
+func GetAppointmentMessages(c *gin.Context) {
+	userID := c.GetUint("user_id")
+	appointmentID := c.Param("appointment_id")
+
+	// Verify user belongs to this appointment
+	var appt models.Appointment
+	if err := database.DB.First(&appt, appointmentID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Appointment not found"})
+		return
+	}
+
+	if appt.PatientID != userID && appt.ProviderID != userID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Not authorized to view this chat"})
+		return
+	}
+
+	var messages []models.AppointmentMessage
+	database.DB.Preload("Sender", func(db *gorm.DB) *gorm.DB {
+		return db.Select("id", "username", "full_name")
+	}).Where("appointment_id = ?", appointmentID).Order("created_at asc").Find(&messages)
+
+	if messages == nil {
+		messages = []models.AppointmentMessage{}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"messages": messages})
+}
+
+// --- NOTIFICATIONS SYSTEM ---
+
+func GetMyNotifications(c *gin.Context) {
+	userID := c.GetUint("user_id")
+
+	var notifications []models.Notification
+	if err := database.DB.Where("user_id = ?", userID).Order("created_at desc").Find(&notifications).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load notifications"})
+		return
+	}
+
+	if notifications == nil {
+		notifications = []models.Notification{}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"notifications": notifications})
+}
+
+func MarkNotificationsRead(c *gin.Context) {
+	userID := c.GetUint("user_id")
+	database.DB.Model(&models.Notification{}).Where("user_id = ? AND is_read = ?", userID, false).Update("is_read", true)
+	c.JSON(http.StatusOK, gin.H{"message": "Notifications marked as read"})
 }

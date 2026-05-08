@@ -3,7 +3,7 @@ package controllers
 import (
 	"encoding/json"
 	"net/http"
-
+	"fmt"
 	"health/anam/backend/database"
 	"health/anam/backend/models"
 
@@ -105,3 +105,42 @@ func UpdateDoctorNotes(c *gin.Context) {
 		"notes":   appointment.Notes,
 	})
 }
+
+// --- NEW SCHEDULE MANAGEMENT / MISSED APPOINTMENTS ---
+
+func MarkAppointmentMissed(c *gin.Context) {
+	providerID := c.GetUint("user_id")
+	appointmentID := c.Param("appointment_id")
+
+	// 1. Validate doctor owns this appointment
+	var appointment models.Appointment
+	if err := database.DB.Preload("Provider").Where("id = ? AND provider_id = ?", appointmentID, providerID).First(&appointment).Error; err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Unauthorized access or appointment not found"})
+		return
+	}
+
+	// 2. Change status to missed
+	appointment.Status = models.StatusMissed
+	if err := database.DB.Save(&appointment).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update appointment status"})
+		return
+	}
+
+	// 3. Create a notification for the patient asking them to reschedule
+	notificationMsg := fmt.Sprintf("You missed your appointment on %s with Dr. %s. Please reschedule at your earliest convenience.", 
+		appointment.StartTime.Format("Jan 02, 2006 at 15:04"), 
+		appointment.Provider.Username) // Or FullName if prioritized
+
+	notification := models.Notification{
+		UserID:  appointment.PatientID,
+		Message: notificationMsg,
+	}
+
+	database.DB.Create(&notification) // We ignore the error here so we don't break the response if notification fails
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Appointment marked as missed. Patient has been notified.",
+		"status":  appointment.Status,
+	})
+}
+

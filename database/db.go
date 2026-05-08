@@ -4,7 +4,7 @@ import (
 	"log"
 	"os"
 	"fmt"
-	"health/anam/backend/models" // Update with your actual module path
+	"health/anam/backend/models"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -14,8 +14,6 @@ import (
 var DB *gorm.DB
 
 func ConnectDB() {
-	
-	//dsn := "host=127.0.0.1 user=postgres password=mysecretpassword dbname=postgres port=5435 sslmode=disable TimeZone=Asia/Karachi"
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file found, using system default environment variables")
 	}
@@ -29,7 +27,7 @@ func ConnectDB() {
 		host, user, password, dbName, port)
 	var err error
 	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info), // Prints SQL queries to console
+		Logger: logger.Default.LogMode(logger.Info),
 	})
 
 	if err != nil {
@@ -38,12 +36,14 @@ func ConnectDB() {
 
 	log.Println("Database connection successfully opened")
 
-	// Auto-migrate the schemas
+	// Added AppointmentMessage and Notification
 	err = DB.AutoMigrate(
 		&models.User{}, 
 		&models.Organization{}, 
 		&models.Appointment{},
 		&models.InterviewSession{},
+		&models.AppointmentMessage{},
+		&models.Notification{},
 	)
 	if err != nil {
 		log.Fatal("Failed to migrate database: ", err)
